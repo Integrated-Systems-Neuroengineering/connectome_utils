@@ -65,23 +65,27 @@ class neuron:
     globalNeuronCount = 0  # STATIC total number of nonAxon neurons
     globalCount = 0  # STATIC total number of both axons and neurons
 
-    def __init__(self, userKey, neuronType, output=False):
+    def __init__(self, userKey, neuronType, neuronModel=None, output=False, dummy=False):
         self.userKey = userKey
         self.neuronType = neuronType
         if neuronType == "axon":
             self.output = False
-            self.globalTypeIdx = copy.deepcopy(neuron.globalAxonCount)
-            neuron.globalAxonCount += 1
+            if not dummy:
+                self.globalTypeIdx = copy.deepcopy(neuron.globalAxonCount)
+                neuron.globalAxonCount += 1
         if neuronType == "neuron":
+            self.neuronModel = neuronModel
             self.output = output
-            self.globalTypeIdx = copy.deepcopy(neuron.globalNeuronCount)
-            neuron.globalNeuronCount += 1
+            if not dummy:
+                self.globalTypeIdx = copy.deepcopy(neuron.globalNeuronCount)
+                neuron.globalNeuronCount += 1
             self.output = output
-        self.globalIdx = copy.deepcopy(neuron.globalCount)
-        neuron.globalCount += 1
-        self.core = 0
-        self.coreTypeIdx = self.globalTypeIdx
-        self.coreIdx = self.globalIdx
+        if not dummy:
+            self.globalIdx = copy.deepcopy(neuron.globalCount)
+            neuron.globalCount += 1
+            self.core = 0
+            self.coreTypeIdx = self.globalTypeIdx
+            self.coreIdx = self.globalIdx
         self.synapses = []
 
     @classmethod
@@ -90,6 +94,11 @@ class neuron:
         cls.globalAxonCount = 0
         cls.globalNeuronCount = 0
         cls.globalCount = 0
+
+
+    def __lt__(self, other):
+         return self.__class__.__name__ < other.__class__.__name__
+
 
     def addSynapse(self, postsynapticNeuron, weight):
         newSynapse = synapse(self, postsynapticNeuron, weight)
@@ -148,6 +157,9 @@ class neuron:
     def set_synapseTypes(self):
         for synapse in self.synapses:
             synapse.set_synapseType()
+
+    def get_neuronModel(self):
+        return self.neuronModel
 
     def __repr__(self):
         return self.obj2string()
@@ -242,6 +254,13 @@ class connectome:
             ] = self.connectomeDict[key]
         return self.mergedNeurons
 
+    def get_class_ordered_list(self):
+        breakpoint()
+        self.get_neurons() #update neurons dictionary
+        dict_list=list(self.neurons.items())
+        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
+        return dict_list
+
     def get_part_format(self):
         mergedNeurons = self.get_merged_neurons()
         networkConnectivity = []
@@ -269,6 +288,17 @@ class connectome:
             ):
                 outputs.append(currNeuron.get_coreTypeIdx())
         return outputs
+
+    def get_models():
+        self.get_neurons() #update neurons dictionary
+        dict_list=list(self.neurons.items())
+        #model_list = [elem.get_neuronModel() for elem in dict_list] #sort by neuron class
+        model_set = set()
+        for elem in dict_list:
+            model_set.add(elem.get_neuronModel())
+        model_list = list(model_set)
+        return model_list
+
 
     def get_outputs_idx(self):
         outputs = []
