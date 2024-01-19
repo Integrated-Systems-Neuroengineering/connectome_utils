@@ -289,13 +289,14 @@ class connectome:
                 outputs.append(currNeuron.get_coreTypeIdx())
         return outputs
 
-    def get_models():
+    def get_models(self):
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
         #model_list = [elem.get_neuronModel() for elem in dict_list] #sort by neuron class
+        breakpoint()
         model_set = set()
         for elem in dict_list:
-            model_set.add(elem.get_neuronModel())
+            model_set.add(elem[1].get_neuronModel())
         model_list = list(model_set)
         return model_list
 
