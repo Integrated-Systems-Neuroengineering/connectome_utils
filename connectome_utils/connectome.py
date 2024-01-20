@@ -301,6 +301,23 @@ class connectome:
         model_list.sort()
         return model_list
 
+    def get_neuron_by_model(self, model):
+        self.get_neurons() #update neurons dictionary
+        dict_list=list(self.neurons.items())
+        return [ elem[1] if elem[1].get_neuronModel() == model for elem in dict_list]
+
+    def pad_models(self):
+        breakpoint()
+        pad_idx = 0
+        model_list = self.get_models()
+        for model in model_list():
+            currList = self.get_neuron_by_model(model)
+            if len(currList)%16 != 0:
+                remainder = len(currList)%16
+                for i in range(remainder):
+                    padNeuron = ('pad'+str(pad_idx), neuronType="neuron", neuronModel=model, output=False, dummy=False)
+                    self.add_neuron(padNeuron)
+
 
     def get_outputs_idx(self):
         outputs = []
