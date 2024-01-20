@@ -298,6 +298,7 @@ class connectome:
         for elem in dict_list:
             model_set.add(elem[1].get_neuronModel())
         model_list = list(model_set)
+        model_list.sort()
         return model_list
 
 
