@@ -306,7 +306,7 @@ class connectome:
     def get_axons(self): #searches throgh all neurons/axons and adds axons to axons dictionary and returns dictionary
         # Update Axons dictionary
         for key in self.connectomeDict:
-            if self.connectomeDict[key].get_neuron_type() == "axon" #if axon add to axons dict
+            if self.connectomeDict[key].get_neuron_type() == "axon": #if axon add to axons dict
                 self.axons[key] = self.connectomeDict[key]
             elif key in self.axons: #else remove key if in axons dict
                 self.axons.pop(key)
