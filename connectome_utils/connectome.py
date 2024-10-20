@@ -265,6 +265,7 @@ class connectome:
         self.axons = {}
         self.neurons = {}
         self.mergedNeurons = {} #contain  both axons and neurons
+        self.cutoffs = []
 
     #add neuron to connectome
     def addNeuron(self, neuron):
@@ -329,12 +330,20 @@ class connectome:
             ] = self.connectomeDict[key]
         return self.mergedNeurons
 
-    def get_class_ordered_list(self):# return a list of neurons by order of their neuron model
+    def update_class_ordered_coreIdx(self):# return a list of neurons by order of their neuron model
+        self.get_neurons() #update neurons dictionary
+        dict_list=list(self.neurons.items())
+        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
         breakpoint()
+        for idx, elem in enumerate(dict_list):
+            elem[1].coreTypeIdx = idx
+
+    def get_class_ordered_list(self):# return a list of neurons by order of their neuron model
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
         dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
         return dict_list
+
 
     def get_part_format(self): #return the connectome in a format the partitioning algorithm expects
         mergedNeurons = self.get_merged_neurons()
@@ -385,14 +394,23 @@ class connectome:
         breakpoint()
         pad_idx = 0
         model_list = self.get_models()
+        cutoffs = []
+        cutoff = 0
         for model in model_list:
             currList = self.get_neuron_by_model(model)
-            if len(currList)%16 != 0:
-                remainder = 16-(len(currList)%16)
+            if len(currList)%32 != 0:
+                remainder = 32-(len(currList)%32)
                 for i in range(remainder):
                     padNeuron = neuron('pad'+str(pad_idx), neuronType="neuron", neuronModel=model, output=False, dummy=False)
                     pad_idx = pad_idx + 1
                     self.addNeuron(padNeuron)
+                cutoff += len(currList)+remainder
+            else:
+                cutoff += len(currList)
+            cutoffs.append(cutoff)
+        self.update_class_ordered_coreIdx()
+        self.cutoffs = cutoffs
+
 
 
     def get_outputs_idx(self): #get all output neurons
