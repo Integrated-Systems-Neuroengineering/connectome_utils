@@ -216,10 +216,7 @@ class neuron:
             synapseType = synapse.set_synapseType()
             print(self.neuronType)
             if synapseType == 'hetero' and self.alignment == 'homo': #if the neuron has >= 1 offcore synapse tag it as heterogenous alignment neuron
-                try:
-                    self.alignment == 'hetero'
-                except:
-                    breakpoint()
+                self.alignment == 'hetero'
 
 
     def get_neuronModel(self):
@@ -334,7 +331,7 @@ class connectome:
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
         dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
-        breakpoint()
+        #breakpoint()
         for idx, elem in enumerate(dict_list):
             elem[1].coreTypeIdx = idx
 
@@ -377,7 +374,7 @@ class connectome:
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
         #model_list = [elem.get_neuronModel() for elem in dict_list] #sort by neuron class
-        breakpoint()
+        #breakpoint()
         model_set = set()
         for elem in dict_list:
             model_set.add(elem[1].get_neuronModel())
@@ -391,7 +388,7 @@ class connectome:
         return [ elem[1] for elem in dict_list if elem[1].get_neuronModel() == model ]
 
     def pad_models(self): #add 'dummy' neurons to the connectome so that definitions of neurons for a model line up in HBM correctly
-        breakpoint()
+        #breakpoint()
         pad_idx = 0
         model_list = self.get_models()
         cutoffs = []
@@ -445,7 +442,7 @@ class connectome:
 
 
     def gen_synapse_df(self): #generate an edge dictionary for graph viz
-        breakpoint()
+        #breakpoint()
         df = pd.DataFrame(columns=('to', 'from'))
         for key in self.connectomeDict:
             neuron = self.connectomeDict[key]
@@ -456,12 +453,12 @@ class connectome:
                 row = [ toVal, fromVal]
                 df.loc[ len(df) ] = row
 
-        breakpoint()
+        #breakpoint()
         return df
 
 
     def graph_viz(self): #make a graph visualizaiton
        node_df =  self.gen_neuron_df()
        edge_df = self.gen_synapse_df()
-       breakpoint()
+       #breakpoint()
        Jaal(edge_df, node_df).plot(directed=True, host = '0.0.0.0', port = '8050') #host is set to allow access from remote client
