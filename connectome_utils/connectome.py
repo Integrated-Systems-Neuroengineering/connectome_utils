@@ -214,7 +214,7 @@ class neuron:
 
         for synapse in self.synapses:
             synapseType = synapse.set_synapseType()
-            print(self.neuronType)
+            #print(self.neuronType)
             if synapseType == 'hetero' and self.alignment == 'homo': #if the neuron has >= 1 offcore synapse tag it as heterogenous alignment neuron
                 self.alignment == 'hetero'
 
