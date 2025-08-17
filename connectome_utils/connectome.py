@@ -98,6 +98,7 @@ class neuron:
             self.neuronModel = neuronModel
             self.relayAxon = None #if the neuron needs an axon to route incomping spikes from offcore synapses
             self.output = output #is the neuron an output neuron
+            self.hbmIdx = None
             if not dummy:
                 self.globalTypeIdx = copy.deepcopy(neuron.globalNeuronCount) #get count of neurons in network
                 neuron.globalNeuronCount += 1
@@ -126,6 +127,12 @@ class neuron:
         #append synapse to network
         newSynapse = synapse(self, postsynapticNeuron, weight) #create synapse object
         self.synapses.append(newSynapse) #add to synapse list
+
+    def set_hbmIdx(self,idx):
+        self.hbmIdx = idx
+
+    def get_hbmIdx(self):
+        return self.hbmIdx
 
     def get_output(self): #check if output neuron
         return self.output
@@ -283,7 +290,7 @@ class connectome:
             # axons and
             if (
                 self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
+                and self.connectomeDict[key].get_hbmIdx() == idx
             ):
                 return self.connectomeDict[key]
 
@@ -339,6 +346,10 @@ class connectome:
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
         dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
+        #reassign index
+        for idx,neuron in enumerate(dict_list):
+            neuron[1].set_hbmIdx(idx)
+
         return dict_list
 
 
