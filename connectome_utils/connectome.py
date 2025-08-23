@@ -290,9 +290,20 @@ class connectome:
             # axons and
             if (
                 self.connectomeDict[key].get_neuron_type() == "neuron"
+                and self.connectomeDict[key].get_coreTypeIdx() == idx
+            ):
+                return self.connectomeDict[key]
+
+    def get_neuron_by_hbmIdx(self, idx): #get neuron by coreTypeIdx
+        for key in self.connectomeDict:
+            # axons and
+            if (
+                self.connectomeDict[key].get_neuron_type() == "neuron"
                 and self.connectomeDict[key].get_hbmIdx() == idx
             ):
                 return self.connectomeDict[key]
+
+
 
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
         for key in self.connectomeDict:
