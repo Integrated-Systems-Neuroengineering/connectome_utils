@@ -265,6 +265,18 @@ class neuron:
 class connectome:
     # connectomeDict = None
     def __init__(self):
+        self.neuronArr = []
+        self.latestNeuronIdx = 0
+        self.axonArr = []
+        self.pureNeuronArr = []
+        self.outputs = []
+        #self.hbmArr = []
+        self.neuonModelIdxs = {} #key is hash of neuorn model object, vaule is index of neuoron model in self.neuronModels 
+        self.neuronModelsCount = 0 #tracks current index in neuronModelIdxs
+        self.neuronModels [][] #neuronModels[neuron][modelIdx]
+        self.modelMapping = [] #list of neuron models
+        self.coreArr = [][] #coreArr[coreIdx][neuronIdx]
+        self.coreArrHbm = [][] #coreArr[coreIdx][hbmIdx]
         self.connectomeDict = {}
         self.axons = {}
         self.neurons = {}
@@ -273,7 +285,27 @@ class connectome:
 
     #add neuron to connectome
     def addNeuron(self, neuron):
-        self.connectomeDict[neuron.get_user_key()] = neuron
+        #updated
+        index = self.latestNeuronIdx
+        self.latestNeuronIdx = self.latestNeuronIdx + 1
+        self.neuronArr[index] = neuron
+        self.connectomeDict[neuron.get_user_key()] = index
+        if neuron.get_neuron_type() == 'neuron': #if a pure neuron add to pure neuron arr
+            pureNeuronArr[end+1] = index
+            if neuron.get_output(): #check if neuron is an outputneuron
+                self.outputs[end+1] = index
+            #handleModel
+            modelKey = hash(neuron.get_neuronModel)
+            #is model in list?
+            if modelKey not in self.neuronModelIdxs:
+                #if not add modelto model list
+                currIdx = self.neuronModelsCount
+                self.neuronModelsCount = self.neuronModelsCount + 1
+                neuronModelIdxs[modelKey] = currIdx
+            #add neuron to model list
+            self.neuronModels[neuronModelIdxs[modelKey]][end+1] = index
+        if neuron.get_neuron_type() == 'axon': #if axon add to axon Arr
+            axonArr[end+1] = index
         neuron.set_connectome(self) #set the neurons connectome
 
     def __repr__(self):
@@ -283,18 +315,16 @@ class connectome:
         return self.obj2string()
 
     def get_neuron_by_key(self, neuronKey):
-        return self.connectomeDict[neuronKey]
+        #updated
+        return neuronArr[self.connectomeDict[neuronKey]]
+
+
 
     def get_neuron_by_idx(self, idx): #get neuron by coreTypeIdx
         for key in self.connectomeDict:
-            # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
-            ):
-                return self.connectomeDict[key]
+        
 
-    def get_neuron_by_hbmIdx(self, idx): #get neuron by coreTypeIdx
+    def get_neuron_by_hbmIdx(self, idx):
         for key in self.connectomeDict:
             # axons and
             if (
@@ -320,22 +350,12 @@ class connectome:
         return string
 
     def get_axons(self): #searches throgh all neurons/axons and adds axons to axons dictionary and returns dictionary
-        # Update Axons dictionary
-        for key in self.connectomeDict:
-            if self.connectomeDict[key].get_neuron_type() == "axon": #if axon add to axons dict
-                self.axons[key] = self.connectomeDict[key]
-            elif key in self.axons: #else remove key if in axons dict
-                self.axons.pop(key)
-        return self.axons
+        #updated
+        return self.neuronArr[self.axonArr]
 
     def get_neurons(self): #same as get axons but for neurons
-        # Update Neurons dictionary
-        for key in self.connectomeDict:
-            if self.connectomeDict[key].get_neuron_type() == "neuron":
-                self.neurons[key] = self.connectomeDict[key]
-            elif key in self.neurons:
-                self.neurons.pop(key)
-        return self.neurons
+        #updated
+        return self.neuronArr[self.pureNeuronArr]
 
     def get_merged_neurons(self): #update and get dictionary off all axons/neurons indexed by gloabal index
         # Update get_merge_neurons dictionary
@@ -433,15 +453,8 @@ class connectome:
 
 
     def get_outputs_idx(self): #get all output neurons
-        outputs = []
-        for key in self.connectomeDict:
-            currNeuron = self.connectomeDict[key]
-            if (
-                currNeuron.get_output() == True
-                and currNeuron.get_neuron_type() == "neuron"
-            ):
-                outputs.append(currNeuron.get_coreTypeIdx())
-        return outputs
+        #updates
+        return self.neurons[self.outputs]
 
     def apply_partition(self, membership): #apply a partition to the network
         mergedNeurons = self.get_merged_neurons()
@@ -451,6 +464,8 @@ class connectome:
         for neuronKey in dictkeys:
             self.connectomeDict[neuronKey].set_synapseTypes() #update synapses and instantiate any relay neurons if needed
 
+
+'''
     def gen_neuron_df(self): #create Node dictionary for graph viz
         df = pd.DataFrame(columns=('id', 'type', 'alignment', 'core', 'axonType'))
          # Update Neurons dictionary
@@ -484,3 +499,4 @@ class connectome:
        edge_df = self.gen_synapse_df()
        #breakpoint()
        Jaal(edge_df, node_df).plot(directed=True, host = '0.0.0.0', port = '8050') #host is set to allow access from remote client
+'''
