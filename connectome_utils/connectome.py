@@ -270,11 +270,14 @@ class connectome:
         self.neurons = {}
         self.mergedNeurons = {} #contain  both axons and neurons
         self.cutoffs = []
+        self._neuron_hbm_cache = {}  # Cache for get_neuron_by_hbmIdx
+        self._cache_valid = True 
 
     #add neuron to connectome
     def addNeuron(self, neuron):
         self.connectomeDict[neuron.get_user_key()] = neuron
         neuron.set_connectome(self) #set the neurons connectome
+        self._cache_valid = False
 
     def __repr__(self):
         return self.obj2string()
@@ -286,32 +289,41 @@ class connectome:
         return self.connectomeDict[neuronKey]
 
     def get_neuron_by_idx(self, idx): #get neuron by coreTypeIdx
-        for key in self.connectomeDict:
+        if not self._cache_valid or not self._neuron_hbm_cache:
+            self._neuron_hbm_cache = {}
+            for key in self.connectomeDict:
             # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
-            ):
-                return self.connectomeDict[key]
+                neuron_obj = self.connectomeDict[key]
+                if neuron_obj.get_neuron_type() == "neuron":
+                    self._neuron_hbm_cache[neuron_obj.get_coreTypeIdx()] = neuron_obj
+            self._cache_valid = True
+        return self._neuron_hbm_cache.get(idx)
+
+
 
     def get_neuron_by_hbmIdx(self, idx): #get neuron by coreTypeIdx
-        for key in self.connectomeDict:
+        if not self._cache_valid or not self._neuron_hbm_cache:
+            self._neuron_hbm_cache = {}
+            for key in self.connectomeDict:
             # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_hbmIdx() == idx
-            ):
-                return self.connectomeDict[key]
+                neuron_obj = self.connectomeDict[key]
+                if neuron_obj.get_neuron_type() == "neuron":
+                    self._neuron_hbm_cache[neuron_obj.get_hbmIdx()] = neuron_obj
+            self._cache_valid = True
+        return self._neuron_hbm_cache.get(idx)
 
 
 
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
-        for key in self.connectomeDict:
-            if (
-                self.connectomeDict[key].get_neuron_type() == "axon"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
-            ):
-                return self.connectomeDict[key]
+        if not self._cache_valid or not self._axon_idx_cache:
+            self._axon_idx_cache = {}
+            for key in self.connectomeDict:
+                neuron_obj = self.connectomeDict[key]
+                if neuron_obj.get_neuron_type() == "axon":
+                    self._axon_idx_cache[neuron_obj.get_coreTypeIdx()] = neuron_obj
+            self._cache_valid = True
+    
+        return self._axon_idx_cache.get(idx)
 
     def obj2string(self):
         string = ""
