@@ -2,8 +2,6 @@
 
 import copy
 import logging
-from jaal import Jaal
-import pandas as pd
 
 class synapse:
     def __init__(self, presynapticNeuron, postsynapticNeuron, weight):
@@ -217,13 +215,12 @@ class neuron:
             else:
                 return canidateSynapses[0]
 
-    def set_synapseTypes(self): #check every neuron for if it's a within or between core synapse
-
+    def set_synapseTypes(self):
+        """Check every synapse to determine if it's within or between core."""
         for synapse in self.synapses:
             synapseType = synapse.set_synapseType()
-            #print(self.neuronType)
-            if synapseType == 'hetero' and self.alignment == 'homo': #if the neuron has >= 1 offcore synapse tag it as heterogenous alignment neuron
-                self.alignment == 'hetero'
+            if synapseType == 'hetero' and self.alignment == 'homo':
+                self.alignment = 'hetero'
 
 
     def get_neuronModel(self):
@@ -249,11 +246,6 @@ class neuron:
             string = string + str(currSynapse)
         return string
 
-    #return if the neuron is tagged as an output neuron
-    def get_output(self):
-        return self.output
-
-    #set the connectome the neuron belongs to
     def set_connectome(self, connectome):
         self.connectome = connectome
 
@@ -263,50 +255,42 @@ class neuron:
 
 
 class connectome:
-    # connectomeDict = None
     def __init__(self):
         self.neuronArr = []
-        self.latestNeuronIdx = 0
         self.axonArr = []
         self.pureNeuronArr = []
         self.outputs = []
-        #self.hbmArr = []
-        self.neuonModelIdxs = {} #key is hash of neuorn model object, vaule is index of neuoron model in self.neuronModels 
-        self.neuronModelsCount = 0 #tracks current index in neuronModelIdxs
-        self.neuronModels [][] #neuronModels[neuron][modelIdx]
-        self.modelMapping = [] #list of neuron models
-        self.coreArr = [][] #coreArr[coreIdx][neuronIdx]
-        self.coreArrHbm = [][] #coreArr[coreIdx][hbmIdx]
-        self.connectomeDict = {}
-        self.axons = {}
-        self.neurons = {}
-        self.mergedNeurons = {} #contain  both axons and neurons
+        self.neuronModelIdxs = {}  # hash(neuronModel) -> index in neuronModels
+        self.neuronModels = []  # list of lists: neuronModels[modelIdx] = [neuronArr indices]
+        self.coreArrHbm = []  # coreArrHbm[coreIdx][hbmIdx] = neuronArr index
+        self.connectomeDict = {}  # userKey -> neuronArr index
+        self.mergedNeurons = {}  # globalIdx -> neuron object
         self.cutoffs = []
+        self.pureNeuronIdxLookup = {}  # userKey -> pureNeuronArr index
 
-    #add neuron to connectome
     def addNeuron(self, neuron):
-        #updated
-        index = self.latestNeuronIdx
-        self.latestNeuronIdx = self.latestNeuronIdx + 1
-        self.neuronArr[index] = neuron
+        """Add a neuron or axon to the connectome."""
+        index = len(self.neuronArr)
+        self.neuronArr.append(neuron)
         self.connectomeDict[neuron.get_user_key()] = index
-        if neuron.get_neuron_type() == 'neuron': #if a pure neuron add to pure neuron arr
-            pureNeuronArr[end+1] = index
-            if neuron.get_output(): #check if neuron is an outputneuron
-                self.outputs[end+1] = index
-            #handleModel
-            modelKey = hash(neuron.get_neuronModel)
-            #is model in list?
+
+        if neuron.get_neuron_type() == 'neuron':
+            position = len(self.pureNeuronArr)
+            self.pureNeuronArr.append(index)
+            self.pureNeuronIdxLookup[neuron.get_user_key()] = position
+            if neuron.get_output():
+                self.outputs.append(position)
+            # Track neuron by model type
+            modelKey = hash(neuron.get_neuronModel())
             if modelKey not in self.neuronModelIdxs:
-                #if not add modelto model list
-                currIdx = self.neuronModelsCount
-                self.neuronModelsCount = self.neuronModelsCount + 1
-                neuronModelIdxs[modelKey] = currIdx
-            #add neuron to model list
-            self.neuronModels[neuronModelIdxs[modelKey]][end+1] = index
-        if neuron.get_neuron_type() == 'axon': #if axon add to axon Arr
-            axonArr[end+1] = index
-        neuron.set_connectome(self) #set the neurons connectome
+                self.neuronModelIdxs[modelKey] = len(self.neuronModels)
+                self.neuronModels.append([])
+            self.neuronModels[self.neuronModelIdxs[modelKey]].append(index)
+
+        if neuron.get_neuron_type() == 'axon':
+            self.axonArr.append(index)
+
+        neuron.set_connectome(self)
 
     def __repr__(self):
         return self.obj2string()
@@ -315,24 +299,17 @@ class connectome:
         return self.obj2string()
 
     def get_neuron_by_key(self, neuronKey):
-        #updated
-        return neuronArr[self.connectomeDict[neuronKey]]
+        return self.neuronArr[self.connectomeDict[neuronKey]]
 
+    def get_pureNeuron_idx(self, neuronKey):
+        return self.pureNeuronIdxLookup[neuronKey]
 
+    def get_neuron_by_idx(self, idx):
+        return self.neuronArr[self.pureNeuronArr[idx]]
 
-    def get_neuron_by_idx(self, idx): #get neuron by coreTypeIdx
-        for key in self.connectomeDict:
-        
-
-    def get_neuron_by_hbmIdx(self, idx):
-        for key in self.connectomeDict:
-            # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_hbmIdx() == idx
-            ):
-                return self.connectomeDict[key]
-
+    def get_neuron_by_hbmIdx(self, idx, core=0):
+        masterIdx = self.coreArrHbm[core][idx]
+        return self.neuronArr[masterIdx]
 
 
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
@@ -349,13 +326,11 @@ class connectome:
             string = string + str(self.connectomeDict[key]) + "\n"
         return string
 
-    def get_axons(self): #searches throgh all neurons/axons and adds axons to axons dictionary and returns dictionary
-        #updated
-        return self.neuronArr[self.axonArr]
+    def get_axons(self):
+        return [self.neuronArr[i] for i in self.axonArr]
 
-    def get_neurons(self): #same as get axons but for neurons
-        #updated
-        return self.neuronArr[self.pureNeuronArr]
+    def get_neurons(self):
+        return [self.neuronArr[i] for i in self.pureNeuronArr]
 
     def get_merged_neurons(self): #update and get dictionary off all axons/neurons indexed by gloabal index
         # Update get_merge_neurons dictionary
@@ -365,23 +340,27 @@ class connectome:
             ] = self.connectomeDict[key]
         return self.mergedNeurons
 
-    def update_class_ordered_coreIdx(self):# return a list of neurons by order of their neuron model
-        self.get_neurons() #update neurons dictionary
-        dict_list=list(self.neurons.items())
-        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
-        #breakpoint()
-        for idx, elem in enumerate(dict_list):
-            elem[1].coreTypeIdx = idx
+    def update_class_ordered_coreIdx(self):
+        """Update coreTypeIdx for neurons sorted by their neuron model."""
+        neurons = self.get_neurons()
+        neurons.sort(key=lambda x: x.neuronModel)
+        for idx, neuron in enumerate(neurons):
+            neuron.coreTypeIdx = idx
 
-    def get_class_ordered_list(self):# return a list of neurons by order of their neuron model
-        self.get_neurons() #update neurons dictionary
-        dict_list=list(self.neurons.items())
-        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
-        #reassign index
-        for idx,neuron in enumerate(dict_list):
-            neuron[1].set_hbmIdx(idx)
+    def get_class_ordered_list(self):
+        """Return neurons sorted by their neuron model, with hbmIdx assigned.
 
-        return dict_list
+        Returns
+        -------
+        list of tuple
+            List of (userKey, neuron) tuples sorted by neuron model.
+        """
+        neurons = self.get_neurons()
+        neuron_list = [(n.get_user_key(), n) for n in neurons]
+        neuron_list.sort(key=lambda x: x[1].neuronModel)
+        for idx, (key, neuron) in enumerate(neuron_list):
+            neuron.set_hbmIdx(idx)
+        return neuron_list
 
 
     def get_part_format(self): #return the connectome in a format the partitioning algorithm expects
@@ -412,91 +391,51 @@ class connectome:
                 outputs.append(currNeuron.get_coreTypeIdx())
         return outputs
 
-    def get_models(self): # get sorted list of neuron models
-        self.get_neurons() #update neurons dictionary
-        dict_list=list(self.neurons.items())
-        #model_list = [elem.get_neuronModel() for elem in dict_list] #sort by neuron class
-        #breakpoint()
-        model_set = set()
-        for elem in dict_list:
-            model_set.add(elem[1].get_neuronModel())
-        model_list = list(model_set)
-        model_list.sort()
-        return model_list
+    def get_neuron_by_model(self, model):
+        """Return all neurons with the specified neuron model."""
+        return [n for n in self.get_neurons() if n.get_neuronModel() == model]
 
-    def get_neuron_by_model(self, model): #get all the neurons of a certain model
-        self.get_neurons() #update neurons dictionary
-        dict_list=list(self.neurons.items())
-        return [ elem[1] for elem in dict_list if elem[1].get_neuronModel() == model ]
-
-    def pad_models(self): #add 'dummy' neurons to the connectome so that definitions of neurons for a model line up in HBM correctly
-        #breakpoint()
-        pad_idx = 0
-        model_list = self.get_models()
+    def pad_models(self):
+        padIdx = 0
         cutoffs = []
         cutoff = 0
-        for model in model_list:
-            currList = self.get_neuron_by_model(model)
-            if len(currList)%32 != 0:
-                remainder = 32-(len(currList)%32)
+        for model in self.neuronModels:
+            # model is a list of indices into self.neuronArr
+            currNeuronModel = self.neuronArr[model[0]].get_neuronModel()
+            numNeurons = len(model)
+            if numNeurons % 32 != 0:
+                remainder = 32 - (numNeurons % 32)
                 for i in range(remainder):
-                    padNeuron = neuron('pad'+str(pad_idx), neuronType="neuron", neuronModel=model, output=False, dummy=False)
-                    pad_idx = pad_idx + 1
+                    padNeuron = neuron('pad'+str(padIdx), neuronType="neuron", neuronModel=currNeuronModel, output=False, dummy=False)
+                    padIdx = padIdx + 1
                     self.addNeuron(padNeuron)
-                cutoff += len(currList)+remainder
+                cutoff += numNeurons + remainder
             else:
-                cutoff += len(currList)
+                cutoff += numNeurons
             cutoffs.append(cutoff)
         self.update_class_ordered_coreIdx()
         self.cutoffs = cutoffs
 
 
 
-    def get_outputs_idx(self): #get all output neurons
-        #updates
-        return self.neurons[self.outputs]
 
-    def apply_partition(self, membership): #apply a partition to the network
+    def get_outputs_idx(self):
+        return self.outputs
+
+    def get_output_neurons(self):
+        return [self.neuronArr[self.pureNeuronArr[i]] for i in self.outputs]
+
+    def apply_partition(self, membership):
+        """Apply a partition to the network, assigning neurons to cores.
+
+        Parameters
+        ----------
+        membership : dict
+            Mapping of globalIdx -> core assignment.
+        """
         mergedNeurons = self.get_merged_neurons()
         for key in membership.keys():
-            mergedNeurons[key].set_core(membership[key]) #set core designation
-        dictkeys = list(self.connectomeDict.keys()) #cast to list since we'll be modifying the dict
+            mergedNeurons[key].set_core(membership[key])
+        dictkeys = list(self.connectomeDict.keys())
         for neuronKey in dictkeys:
-            self.connectomeDict[neuronKey].set_synapseTypes() #update synapses and instantiate any relay neurons if needed
-
-
-'''
-    def gen_neuron_df(self): #create Node dictionary for graph viz
-        df = pd.DataFrame(columns=('id', 'type', 'alignment', 'core', 'axonType'))
-         # Update Neurons dictionary
-        for key in self.connectomeDict:
-            neuron = self.connectomeDict[key]
-            row = [ key, neuron.get_neuron_type(), neuron.get_alignment(), str(neuron.get_core()), neuron.get_axon_type()
-            ]
-            df.loc[ len(df) ] = row
-
-        return df
-
-
-    def gen_synapse_df(self): #generate an edge dictionary for graph viz
-        #breakpoint()
-        df = pd.DataFrame(columns=('to', 'from'))
-        for key in self.connectomeDict:
-            neuron = self.connectomeDict[key]
-            synapses = neuron.get_synapses()
-            for synapse in synapses:
-                toVal = synapse.get_postsynapticNeuron().get_user_key()
-                fromVal = synapse.get_presynapticNeuron().get_user_key()
-                row = [ toVal, fromVal]
-                df.loc[ len(df) ] = row
-
-        #breakpoint()
-        return df
-
-
-    def graph_viz(self): #make a graph visualizaiton
-       node_df =  self.gen_neuron_df()
-       edge_df = self.gen_synapse_df()
-       #breakpoint()
-       Jaal(edge_df, node_df).plot(directed=True, host = '0.0.0.0', port = '8050') #host is set to allow access from remote client
-'''
+            self.connectomeDict[neuronKey].set_synapseTypes()
