@@ -1,21 +1,63 @@
 #!/usr/bin/env python3
+"""Connectome modeling module for neural network representation.
+
+This module provides classes to represent and manipulate neural network
+connectomes, including neurons, axons, and synapses. It supports partitioning
+networks across multiple cores and tracking connectivity relationships.
+"""
 
 import copy
 import logging
 
+
 class synapse:
+    """Represents a synaptic connection between two neurons.
+
+    A synapse connects a presynaptic neuron (source) to a postsynaptic neuron
+    (target) with a given weight. Synapses can be classified as homogeneous
+    (within the same core) or heterogeneous (between different cores).
+
+    Attributes
+    ----------
+    presynapticNeuron : neuron
+        The source neuron of the synapse.
+    postsynapticNeuron : neuron
+        The target neuron of the synapse.
+    weight : float
+        The synaptic weight.
+    synapseType : str or None
+        Either 'homo' (within core) or 'hetero' (between cores).
+    colIndex : int or None
+        Column index in the connectivity matrix.
+    rowIndex : int or None
+        Row index in the connectivity matrix.
+    """
+
     def __init__(self, presynapticNeuron, postsynapticNeuron, weight):
+        """Initialize a synapse.
+
+        Parameters
+        ----------
+        presynapticNeuron : neuron
+            The source neuron of the synapse.
+        postsynapticNeuron : neuron
+            The target neuron of the synapse.
+        weight : float
+            The synaptic weight.
+        """
         self.presynapticNeuron = presynapticNeuron
         self.postsynapticNeuron = postsynapticNeuron
         self.weight = weight
-        self.synapseType = None #is the synapse within core (homogeneous) or between core (heterogeneous)
+        self.synapseType = None  # is the synapse within core (homogeneous) or between core (heterogeneous)
         self.colIndex = None
         self.rowIndex = None
 
     def get_presynapticNeuron(self):
+        """Return the presynaptic (source) neuron."""
         return self.presynapticNeuron
 
     def get_postsynapticNeuron(self):
+        """Return the postsynaptic (target) neuron."""
         return self.postsynapticNeuron
 
     def set_synapseType(self):
@@ -312,13 +354,15 @@ class connectome:
         return self.neuronArr[masterIdx]
 
 
+    #this function has problems
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
         for key in self.connectomeDict:
+            neuron = self.neuronArr[self.connectomeDict[key]]
             if (
-                self.connectomeDict[key].get_neuron_type() == "axon"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
+                neuron.get_neuron_type() == "axon"
+                and neuron.get_coreTypeIdx() == idx
             ):
-                return self.connectomeDict[key]
+                return neuron
 
     def obj2string(self):
         string = ""
@@ -332,12 +376,12 @@ class connectome:
     def get_neurons(self):
         return [self.neuronArr[i] for i in self.pureNeuronArr]
 
+    #this should probably get deprecated
     def get_merged_neurons(self): #update and get dictionary off all axons/neurons indexed by gloabal index
         # Update get_merge_neurons dictionary
         for key in self.connectomeDict:
-            self.mergedNeurons[
-                self.connectomeDict[key].get_globalIdx()
-            ] = self.connectomeDict[key]
+            neuron = self.neuronArr[self.connectomeDict[key]]
+            self.mergedNeurons[neuron.get_globalIdx()] = neuron
         return self.mergedNeurons
 
     def update_class_ordered_coreIdx(self):
@@ -347,19 +391,33 @@ class connectome:
         for idx, neuron in enumerate(neurons):
             neuron.coreTypeIdx = idx
 
-    def get_class_ordered_list(self):
-        """Return neurons sorted by their neuron model, with hbmIdx assigned.
+    def get_class_ordered_list(self, core=0):
+        """Return neurons for a specific core sorted by neuron model, with per-core hbmIdx assigned.
+
+        Parameters
+        ----------
+        core : int
+            The core index to get neurons for.
 
         Returns
         -------
         list of tuple
-            List of (userKey, neuron) tuples sorted by neuron model.
+            List of (userKey, neuron) tuples sorted by neuron model for the specified core.
         """
         neurons = self.get_neurons()
-        neuron_list = [(n.get_user_key(), n) for n in neurons]
+        neuron_list = [(n.get_user_key(), n) for n in neurons if n.get_core() == core]
         neuron_list.sort(key=lambda x: x[1].neuronModel)
+
+        # Ensure coreArrHbm is large enough for this core index
+        while len(self.coreArrHbm) <= core:
+            self.coreArrHbm.append([])
+
+        core_lookup = []
         for idx, (key, neuron) in enumerate(neuron_list):
             neuron.set_hbmIdx(idx)
+            core_lookup.append(self.connectomeDict[key])
+        self.coreArrHbm[core] = core_lookup
+
         return neuron_list
 
 
@@ -382,7 +440,7 @@ class connectome:
     def get_core_outputs_idx(self, core): #get output neurons for a specific core
         outputs = []
         for key in self.connectomeDict:
-            currNeuron = self.connectomeDict[key]
+            currNeuron = self.neuronArr[self.connectomeDict[key]]
             if (
                 currNeuron.get_output() == True
                 and currNeuron.get_neuron_type() == "neuron"
@@ -425,6 +483,11 @@ class connectome:
     def get_output_neurons(self):
         return [self.neuronArr[self.pureNeuronArr[i]] for i in self.outputs]
 
+    def get_models(self):
+        """Return unique neuron model objects in the order they appear in neuronModels."""
+        return [self.neuronArr[model_indices[0]].get_neuronModel()
+                for model_indices in self.neuronModels]
+
     def apply_partition(self, membership):
         """Apply a partition to the network, assigning neurons to cores.
 
@@ -438,4 +501,4 @@ class connectome:
             mergedNeurons[key].set_core(membership[key])
         dictkeys = list(self.connectomeDict.keys())
         for neuronKey in dictkeys:
-            self.connectomeDict[neuronKey].set_synapseTypes()
+            self.neuronArr[self.connectomeDict[neuronKey]].set_synapseTypes()
