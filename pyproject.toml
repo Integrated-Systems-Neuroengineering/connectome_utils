@@ -10,6 +10,10 @@ packages = [{include = "connectome_utils"}]
 python = "^3.10"
 
 
+[tool.poetry.group.dev.dependencies]
+black = "^25.1.0"
+pre-commit = "^4.0.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
