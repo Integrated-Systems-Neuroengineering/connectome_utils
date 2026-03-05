@@ -18,14 +18,14 @@
       in {
         packages.default = (p2n.mkPoetryPackages {
           projectDir = ./.;
-          python = pkgs.python310;
+          python = pkgs.python311;
         }).poetryPackage;
 
         devShells.default = pkgs.mkShell {
           packages = [
             (p2n.mkPoetryEnv {
               projectDir = ./.;
-              python = pkgs.python310;
+              python = pkgs.python311;
             })
           ];
         };
