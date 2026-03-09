@@ -2,7 +2,7 @@
   description = "connectome_utils - HiAER-Spike network model library";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
     flake-utils.url = "github:numtide/flake-utils";
     devshell = {
       url = "github:numtide/devshell";
@@ -23,6 +23,7 @@
         packages.default = p2n.mkPoetryApplication {
           projectDir = ./.;
           python = pkgs.python311;
+          preferWheels = true;
         };
 
         devShells.default = pkgs.devshell.mkShell {
