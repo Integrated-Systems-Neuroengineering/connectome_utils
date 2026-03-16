@@ -14,8 +14,8 @@
     };
   };
 
-  outputs = { self, nixpkgs, flake-utils, devshell, poetry2nix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs = { nixpkgs, flake-utils, devshell, poetry2nix, ... }:
+    flake-utils.lib.eachSystem [ "x86_64-linux" ] (system:
       let
         pkgs = import nixpkgs { inherit system; overlays = [ devshell.overlays.default ]; };
         p2n = poetry2nix.lib.mkPoetry2Nix { inherit pkgs; };
@@ -31,6 +31,7 @@
             (p2n.mkPoetryEnv {
               projectDir = ./.;
               python = pkgs.python311;
+              preferWheels = true;
             })
           ];
         };
