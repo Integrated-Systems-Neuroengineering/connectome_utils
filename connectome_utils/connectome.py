@@ -67,19 +67,14 @@ class synapse:
         return self.postsynapticNeuron
 
     def set_synapseType(self):
-        #check if the synapse is between or withing core
+        #check if the synapse is between or within core
         if self.postsynapticNeuron and self.presynapticNeuron:
             if self.postsynapticNeuron.get_core() != self.presynapticNeuron.get_core():
                 self.synapseType = "hetero"
-                #check if there is a relay axon to the post synaptic neuron
-                relayAxon = self.postsynapticNeuron.get_relay_axon()
-                #if it exists: it's the postsynaptic neuron
-                if relayAxon:
-                    self.postsynapticNeuron = relayAxon
-                #if it doesn't exist: create it and add it to the connectome
-                else:
-                    self.postsynapticNeuron.set_relay_axon()
-                    self.postsynapticNeuron = self.postsynapticNeuron.get_relay_axon()
+                # Route through a relay axon on the destination core.
+                # Relay axons are keyed by weight so that the correct weight is
+                # present in the destination core's HBM synapse table.
+                self.postsynapticNeuron = self.postsynapticNeuron.set_relay_axon(self.weight)
             else:
                 self.synapseType = "homo"
         else:
@@ -146,7 +141,7 @@ class neuron:
 
         if neuronType == "neuron":
             self.neuronModel = neuronModel
-            self.relayAxon = None #if the neuron needs an axon to route incomping spikes from offcore synapses
+            self.relayAxons = {}  # weight -> relay axon; one relay axon per distinct incoming cross-core weight
             self.output = output #is the neuron an output neuron
             self.hbmIdx = None
             if not dummy:
@@ -196,8 +191,9 @@ class neuron:
     def get_neuron_type(self): #get if axon/neuron
         return self.neuronType
 
-    def get_relay_axon(self): #get relay axon if neuron has one
-        return self.relayAxon
+    def get_relay_axon(self, weight=None):
+        """Return the relay axon for the given weight, or None if it doesn't exist yet."""
+        return self.relayAxons.get(weight)
 
     def get_alignment(self): #check if neunon has synapses off core
         try:
@@ -211,15 +207,32 @@ class neuron:
         except:
             return None
 
-    def set_relay_axon(self):
-        #assign a relay axon to the neuronu
-        name = str(self.get_user_key())+('RAx') #get a name for axon
-        relayAxon = neuron(userKey = name, neuronType = "axon", axonType = 'Raxon') #create the neuron
-        relayAxon.set_core(self.core) #set to be same core as neuron
-        connectome = self.get_connectome() #get the connectome object the neuron belongs to
-        connectome.addNeuron(relayAxon) #add relay axon to connectome
-        relayAxon.addSynapse(self, 1) #point relay axon to current neuron
-        self.relayAxon = relayAxon
+    def set_relay_axon(self, weight):
+        """Create a relay axon for cross-core spikes arriving with the given weight.
+
+        Relay axons are grouped by weight: all cross-core synapses targeting this
+        neuron with the same weight share one relay axon on this core, so the relay
+        axon's synapse table carries the correct weight rather than a hardcoded 1.
+
+        Parameters
+        ----------
+        weight : numeric
+            The synaptic weight of the incoming cross-core connection.
+
+        Returns
+        -------
+        neuron
+            The relay axon for this (destination, weight) pair.
+        """
+        if weight in self.relayAxons:
+            return self.relayAxons[weight]
+        name = f"{self.get_user_key()}RAx_w{weight}"
+        relayAxon = neuron(userKey=name, neuronType="axon", axonType='Raxon')
+        relayAxon.set_core(self.core)
+        connectome = self.get_connectome()
+        connectome.addNeuron(relayAxon)
+        relayAxon.addSynapse(self, weight)
+        self.relayAxons[weight] = relayAxon
         return relayAxon
 
 
