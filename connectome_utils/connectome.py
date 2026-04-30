@@ -397,7 +397,7 @@ class connectome:
     def update_class_ordered_coreIdx(self):
         """Update coreTypeIdx for neurons sorted by their neuron model."""
         neurons = self.get_neurons()
-        neurons.sort(key=lambda x: x.neuronModel)
+        neurons.sort(key=lambda x: self.neuronModelIdxs.get(hash(x.neuronModel), len(self.neuronModels)))
         for idx, neuron in enumerate(neurons):
             neuron.coreTypeIdx = idx
 
@@ -416,7 +416,7 @@ class connectome:
         """
         neurons = self.get_neurons()
         neuron_list = [(n.get_user_key(), n) for n in neurons if n.get_core() == core]
-        neuron_list.sort(key=lambda x: x[1].neuronModel)
+        neuron_list.sort(key=lambda x: self.neuronModelIdxs.get(hash(x[1].neuronModel), len(self.neuronModels)))
 
         # Ensure coreArrHbm is large enough for this core index
         while len(self.coreArrHbm) <= core:
