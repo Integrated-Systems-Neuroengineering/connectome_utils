@@ -33,7 +33,7 @@ class synapse:
         Row index in the connectivity matrix.
     """
 
-    def __init__(self, presynapticNeuron, postsynapticNeuron, weight):
+    def __init__(self, presynapticNeuron, postsynapticNeuron, weight, delayed=False):
         """Initialize a synapse.
 
         Parameters
@@ -48,6 +48,9 @@ class synapse:
         self.presynapticNeuron = presynapticNeuron
         self.postsynapticNeuron = postsynapticNeuron
         self.weight = weight
+        self.delayed = delayed
+    def is_delayed(self):
+        return self.delayed
         self.synapseType = None  # is the synapse within core (homogeneous) or between core (heterogeneous)
         self.colIndex = None
         self.rowIndex = None
@@ -163,9 +166,9 @@ class neuron:
          return self.__class__.__name__ < other.__class__.__name__
 
 
-    def addSynapse(self, postsynapticNeuron, weight):
+    def addSynapse(self, postsynapticNeuron, weight, delayed=False):
         #append synapse to network
-        newSynapse = synapse(self, postsynapticNeuron, weight) #create synapse object
+        newSynapse = synapse(self, postsynapticNeuron, weight, delayed=delayed) #create synapse object
         self.synapses.append(newSynapse) #add to synapse list
 
     def set_hbmIdx(self,idx):
