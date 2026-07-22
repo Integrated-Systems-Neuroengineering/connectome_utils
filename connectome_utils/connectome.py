@@ -483,11 +483,17 @@ class connectome:
         for model in self.neuronModels:
             # model is a list of indices into self.neuronArr
             currNeuronModel = self.neuronArr[model[0]].get_neuronModel()
+            # Pad neurons must live on the same core as the real neurons of this
+            # model, otherwise they default to core 0 and create phantom neurons
+            # on a core that has no axons (breaking multicore compilation).
+            modelCore = self.neuronArr[model[0]].get_core()
             numNeurons = len(model)
             if numNeurons % 32 != 0:
                 remainder = 32 - (numNeurons % 32)
                 for i in range(remainder):
                     padNeuron = neuron('pad'+str(padIdx), neuronType="neuron", neuronModel=currNeuronModel, output=False, dummy=False)
+                    padNeuron.set_core(modelCore)
+                    padNeuron.manualCore = getattr(self.neuronArr[model[0]], 'manualCore', False)
                     padIdx = padIdx + 1
                     self.addNeuron(padNeuron)
                 cutoff += numNeurons + remainder
