@@ -123,7 +123,7 @@ class neuron:
          return self.__class__.__name__ < other.__class__.__name__
 
 
-    def addSynapse(self, postsynapticNeuron, weight):
+    def addSynapse(self, postsynapticNeuron, weight, delayed=False):
         #append synapse to network
         newSynapse = synapse(self, postsynapticNeuron, weight) #create synapse object
         self.synapses.append(newSynapse) #add to synapse list
@@ -303,6 +303,32 @@ class connectome:
             ):
                 return self.connectomeDict[key]
 
+    def get_cores_used(self): #sorted list of cores holding at least one neuron
+        self.get_neurons()
+        return sorted({n.get_core() for n in self.neurons.values()})
+
+    def build_hbm_index(self): #(core, hbmIdx) -> neuron, so readback is not a scan
+        self._hbm_index = {}
+        for key in self.connectomeDict:
+            currNeuron = self.connectomeDict[key]
+            if (currNeuron.get_neuron_type() == "neuron"
+                    and currNeuron.get_hbmIdx() is not None):
+                self._hbm_index[(currNeuron.get_core(),
+                                 currNeuron.get_hbmIdx())] = currNeuron
+        return self._hbm_index
+
+    def get_neuron_by_core_idx(self, core, idx): #resolve a spike to its neuron
+        #The spike packet carries CORE_ID and a per-core address; the pair is
+        #what identifies a neuron once more than one core is in use.
+        index = getattr(self, "_hbm_index", None)
+        if index is None:
+            index = self.build_hbm_index()
+        currNeuron = index.get((core, idx))
+        if currNeuron is None:
+            #index may predate a re-assignment; rebuild once before giving up
+            currNeuron = self.build_hbm_index().get((core, idx))
+        return currNeuron
+
 
 
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
@@ -345,22 +371,40 @@ class connectome:
             ] = self.connectomeDict[key]
         return self.mergedNeurons
 
-    def update_class_ordered_coreIdx(self):# return a list of neurons by order of their neuron model
+    def update_class_ordered_coreIdx(self):# assign the per-core hardware index
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
-        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
-        #breakpoint()
-        for idx, elem in enumerate(dict_list):
+        #sort by core first, then by neuron class.  Python's sort is stable, so
+        #within one (core, model) group insertion order is preserved -- with a
+        #single core this is the previous ordering unchanged.
+        dict_list.sort(key=lambda x: (x[1].get_core(), x[1].neuronModel))
+        #coreTypeIdx restarts at 0 on every core.  The compiler turns it into
+        #row = idx // N_NG and column = idx % N_NG, so it must be the index
+        #WITHIN a core, not a position in a global sequence.
+        per_core = {}
+        for elem in dict_list:
+            core = elem[1].get_core()
+            idx = per_core.get(core, 0)
             elem[1].coreTypeIdx = idx
+            per_core[core] = idx + 1
 
-    def get_class_ordered_list(self):# return a list of neurons by order of their neuron model
+    def get_class_ordered_list(self, core=None):# neurons ordered by core then model
         self.get_neurons() #update neurons dictionary
         dict_list=list(self.neurons.items())
-        dict_list.sort(key=lambda x: x[1].neuronModel) #sort by neuron class
-        #reassign index
-        for idx,neuron in enumerate(dict_list):
-            neuron[1].set_hbmIdx(idx)
+        dict_list.sort(key=lambda x: (x[1].get_core(), x[1].neuronModel))
+        #reassign index -- hbmIdx restarts per core so that it matches
+        #coreTypeIdx, which is the address the hardware reports in the spike
+        #packet alongside CORE_ID.
+        per_core = {}
+        for neuronEntry in dict_list:
+            c = neuronEntry[1].get_core()
+            idx = per_core.get(c, 0)
+            neuronEntry[1].set_hbmIdx(idx)
+            per_core[c] = idx + 1
 
+        self.build_hbm_index()
+        if core is not None:
+            return [elem for elem in dict_list if elem[1].get_core() == core]
         return dict_list
 
 
@@ -409,26 +453,38 @@ class connectome:
         dict_list=list(self.neurons.items())
         return [ elem[1] for elem in dict_list if elem[1].get_neuronModel() == model ]
 
-    def pad_models(self): #add 'dummy' neurons to the connectome so that definitions of neurons for a model line up in HBM correctly
+    def pad_models(self): #add 'dummy' neurons so each model's region lines up in HBM
         #breakpoint()
         pad_idx = 0
         model_list = self.get_models()
-        cutoffs = []
-        cutoff = 0
-        for model in model_list:
-            currList = self.get_neuron_by_model(model)
-            if len(currList)%32 != 0:
-                remainder = 32-(len(currList)%32)
-                for i in range(remainder):
-                    padNeuron = neuron('pad'+str(pad_idx), neuronType="neuron", neuronModel=model, output=False, dummy=False)
-                    pad_idx = pad_idx + 1
-                    self.addNeuron(padNeuron)
-                cutoff += len(currList)+remainder
-            else:
-                cutoff += len(currList)
-            cutoffs.append(cutoff)
+        #Pad and compute cutoffs PER CORE.  The cutoffs are URAM model
+        #boundaries written by write_neuron_type, and each core has its own
+        #address space, so a single global cutoff list is only correct when
+        #every neuron sits on one core.
+        core_cutoffs = {}
+        for core in self.get_cores_used():
+            cutoffs = []
+            cutoff = 0
+            for model in model_list:
+                currList = [n for n in self.get_neuron_by_model(model)
+                            if n.get_core() == core]
+                if len(currList)%32 != 0:
+                    remainder = 32-(len(currList)%32)
+                    for i in range(remainder):
+                        padNeuron = neuron('pad'+str(pad_idx), neuronType="neuron", neuronModel=model, output=False, dummy=False)
+                        padNeuron.set_core(core)
+                        pad_idx = pad_idx + 1
+                        self.addNeuron(padNeuron)
+                    cutoff += len(currList)+remainder
+                else:
+                    cutoff += len(currList)
+                cutoffs.append(cutoff)
+            core_cutoffs[core] = cutoffs
         self.update_class_ordered_coreIdx()
-        self.cutoffs = cutoffs
+        self.core_cutoffs = core_cutoffs
+        #.cutoffs keeps its existing meaning -- the core-0 list -- so callers
+        #that have not been made core-aware yet behave exactly as before.
+        self.cutoffs = core_cutoffs.get(0, [])
 
 
 
@@ -450,6 +506,27 @@ class connectome:
         dictkeys = list(self.connectomeDict.keys()) #cast to list since we'll be modifying the dict
         for neuronKey in dictkeys:
             self.connectomeDict[neuronKey].set_synapseTypes() #update synapses and instantiate any relay neurons if needed
+        #relay axons are created by set_synapseTypes above and inherit their
+        #neuron's core, so axon indexing has to run after it, not before
+        self.update_core_axon_idx()
+
+    def update_core_axon_idx(self): #assign each axon its per-core index
+        #The host turns an input symbol into an axon index with
+        #get_coreTypeIdx(), and map_to_hbm_fpga lays axons out in get_axons()
+        #iteration order.  Both must be per core and must agree, so this walks
+        #that same order and restarts the count on every core.
+        self.get_axons()
+        per_core = {}
+        for key in self.axons:
+            currAxon = self.axons[key]
+            core = currAxon.get_core()
+            idx = per_core.get(core, 0)
+            currAxon.set_coreTypeIdx(idx)
+            per_core[core] = idx + 1
+
+    def get_core_axons(self, core): #axons on one core, in HBM order
+        self.get_axons()
+        return {k: a for k, a in self.axons.items() if a.get_core() == core}
 
     def gen_neuron_df(self): #create Node dictionary for graph viz
         df = pd.DataFrame(columns=('id', 'type', 'alignment', 'core', 'axonType'))
