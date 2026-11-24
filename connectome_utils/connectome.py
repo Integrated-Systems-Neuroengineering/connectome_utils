@@ -129,8 +129,16 @@ class neuron:
         newSynapse = synapse(self, postsynapticNeuron, weight, rule) #create synapse object
         self.synapses.append(newSynapse) #add to synapse list
 
+    # handling stale dictionary lookups when neuron indices change.
+    # The connectome's _lookup table is built on first use and dropped when a neuron changes its index or core.
+    def _index_changed(self):
+        drop = getattr(getattr(self, "connectome", None), "_drop_lookups", None)
+        if drop is not None:
+            drop()
+
     def set_hbmIdx(self,idx):
         self.hbmIdx = idx
+        self._index_changed()
 
     def get_hbmIdx(self):
         return self.hbmIdx
@@ -177,6 +185,7 @@ class neuron:
     # setter getter for core
     def set_core(self, core):
         self.core = core
+        self._index_changed()
 
     def get_core(self):
         return self.core
@@ -191,6 +200,7 @@ class neuron:
     # setter getter for index specific to the neuron type for a specific core
     def set_coreTypeIdx(self, coreTypeIdx):
         self.coreTypeIdx = coreTypeIdx
+        self._index_changed()
 
     def get_coreTypeIdx(self):
         return self.coreTypeIdx
@@ -276,6 +286,37 @@ class connectome:
     def addNeuron(self, neuron):
         self.connectomeDict[neuron.get_user_key()] = neuron
         neuron.set_connectome(self) #set the neurons connectome
+        self._drop_lookups()
+
+    # Index lookups.  get_neuron_by_idx, get_neuron_by_hbmIdx and
+    # get_axon_by_idx read a hash table built on its first use
+    # key (type, field, value) -> FIRST entry in connectomeDict order with that value.
+    # Anything that changes an index, a core, or the set of entries drops the table
+    # Rebuild when a lookup fails
+    def _drop_lookups(self):
+        self._lookup = None
+        self._hbm_index = None
+
+    def _lookup_table(self):
+        table = getattr(self, "_lookup", None)
+        if table is None:
+            table = {}
+            for entry in self.connectomeDict.values():
+                kind = entry.get_neuron_type()
+                table.setdefault((kind, "coreTypeIdx", getattr(entry, "coreTypeIdx", None)), entry)
+                if kind == "neuron":
+                    table.setdefault((kind, "hbmIdx", entry.get_hbmIdx()), entry)
+            self._lookup = table
+        return table
+
+    def _find(self, kind, field, idx):
+        entry = self._lookup_table().get((kind, field, idx))
+        if (entry is None or entry.get_neuron_type() != kind
+                or getattr(entry, field, None) != idx
+                or self.connectomeDict.get(entry.get_user_key()) is not entry):
+            self._drop_lookups()
+            entry = self._lookup_table().get((kind, field, idx))
+        return entry
 
     def __repr__(self):
         return self.obj2string()
@@ -287,22 +328,10 @@ class connectome:
         return self.connectomeDict[neuronKey]
 
     def get_neuron_by_idx(self, idx): #get neuron by coreTypeIdx
-        for key in self.connectomeDict:
-            # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
-            ):
-                return self.connectomeDict[key]
+        return self._find("neuron", "coreTypeIdx", idx)
 
-    def get_neuron_by_hbmIdx(self, idx): #get neuron by coreTypeIdx
-        for key in self.connectomeDict:
-            # axons and
-            if (
-                self.connectomeDict[key].get_neuron_type() == "neuron"
-                and self.connectomeDict[key].get_hbmIdx() == idx
-            ):
-                return self.connectomeDict[key]
+    def get_neuron_by_hbmIdx(self, idx): #get neuron by hbmIdx
+        return self._find("neuron", "hbmIdx", idx)
 
     def get_cores_used(self): #sorted list of cores holding at least one neuron
         self.get_neurons()
@@ -333,12 +362,7 @@ class connectome:
 
 
     def get_axon_by_idx(self, idx): #get axon by coreTypeIdx
-        for key in self.connectomeDict:
-            if (
-                self.connectomeDict[key].get_neuron_type() == "axon"
-                and self.connectomeDict[key].get_coreTypeIdx() == idx
-            ):
-                return self.connectomeDict[key]
+        return self._find("axon", "coreTypeIdx", idx)
 
     def obj2string(self):
         string = ""
@@ -388,6 +412,7 @@ class connectome:
             idx = per_core.get(core, 0)
             elem[1].coreTypeIdx = idx
             per_core[core] = idx + 1
+        self._drop_lookups() #coreTypeIdx was written directly above
 
     def get_class_ordered_list(self, core=None):# neurons ordered by core then model
         self.get_neurons() #update neurons dictionary
